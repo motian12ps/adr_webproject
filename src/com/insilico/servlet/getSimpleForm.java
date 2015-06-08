@@ -1,12 +1,18 @@
-package com.insilico.servelet;
+package com.insilico.servlet;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.Iterator;
+import java.util.List;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+
+import com.insilico.dao.QueryFromMysql;
+import com.insilico.dao.QueryVariables;
+import com.insilico.util.printTool;
 
 public class getSimpleForm extends HttpServlet {
 
@@ -38,19 +44,20 @@ public class getSimpleForm extends HttpServlet {
 	public void doGet(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
 
-		response.setContentType("text/html");
-		PrintWriter out = response.getWriter();
-		out.println("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">");
-		out.println("<HTML>");
-		out.println("  <HEAD><TITLE>A Servlet</TITLE></HEAD>");
-		out.println("  <BODY>");
-		out.print("    This is ");
-		out.print(this.getClass());
-		out.println(", using the GET method");
-		out.println("  </BODY>");
-		out.println("</HTML>");
-		out.flush();
-		out.close();
+		this.doPost(request, response);
+//		response.setContentType("text/html");
+//		PrintWriter out = response.getWriter();
+//		out.println("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">");
+//		out.println("<HTML>");
+//		out.println("  <HEAD><TITLE>A Servlet</TITLE></HEAD>");
+//		out.println("  <BODY>");
+//		out.print("    This is ");
+//		out.print(this.getClass());
+//		out.println(", using the GET method");
+//		out.println("  </BODY>");
+//		out.println("</HTML>");
+//		out.flush();
+//		out.close();
 	}
 
 	/**
@@ -71,19 +78,30 @@ public class getSimpleForm extends HttpServlet {
 		
 		PrintWriter out = response.getWriter();
 		
+		QueryVariables queryvar=new QueryVariables();
+		
 		String startyear=request.getParameter("startyear");
-		out.println(startyear);
-//		out.println("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">");
-//		out.println("<HTML>");
-//		out.println("  <HEAD><TITLE>A Servlet</TITLE></HEAD>");
-//		out.println("  <BODY>");
-//		out.print("    This is ");
-//		out.print(this.getClass());
-//		out.println(", using the POST method");
-//		out.println("  </BODY>");
-//		out.println("</HTML>");
-		out.flush();
-		out.close();
+		String endyear=request.getParameter("endyear");
+		String startquarter=request.getParameter("startquarter");
+		String endquarter=request.getParameter("endquarter");
+		
+		String[] miningAttributes=request.getParameterValues("MiningAttributes");
+		
+		String measure=request.getParameter("Measure");
+		
+		String numofcount=request.getParameter("numberofoutput");
+
+		queryvar.setTimeperiod(startyear, endyear, startquarter, endquarter);
+		queryvar.setMiningAttributes(miningAttributes);
+		queryvar.setMeasure(measure);
+		queryvar.setNumOutput(numofcount);
+		queryvar.setType("simple");
+
+		List outputList;
+		outputList=QueryFromMysql.query(queryvar);
+		
+		printTool.printResultsToHTML(out,queryvar,outputList);
+		
 	}
 
 	/**
