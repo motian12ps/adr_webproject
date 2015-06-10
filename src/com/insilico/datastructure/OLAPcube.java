@@ -3,6 +3,8 @@ package com.insilico.datastructure;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -12,6 +14,7 @@ import java.util.TreeMap;
 
 import com.insilico.dao.QueryVariables;
 import com.insilico.parameter.parameter;
+import com.insilico.util.compressDataset;
 import com.insilico.util.printTool;
 import com.insilico.util.sortTool;
 
@@ -102,7 +105,17 @@ public class OLAPcube {
 						
 						String entryclass=rsMD.getColumnClassName(i);
 						Object value=rs.getObject(entryname);
+						if(entryname.equals("age")){
+							value=String.valueOf(value);
+							value=compressDataset.compressAgeIntoAgeRange((String)value);
+						}
+						if(entryname.equals("time")){
+							DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+							String time=df.format(value);
+							value=compressDataset.compressDateIntoQuarter(time);
+						}
 						label.put(rsMD.getColumnName(i), value);
+						
 //						System.out.println(rsMD.getColumnName(i)+" "+value);
 //						System.out.println(rs.getObject(entryname));
 
@@ -125,41 +138,72 @@ public class OLAPcube {
 					
 				}
 			}else if(parameter.countnum==-1){
+				double count=0;
+				int rowCount=0;
+				double ratio=0;
+				try{
+					rs.last();
+					rowCount=rs.getRow();
+				}catch(Exception e){
+					e.printStackTrace();
+				}
+				rs.first();
+				double rssize=(double)rowCount;
+				System.out.println(rssize);
 				while(rs.next()){
 				
-				//OLAPcell olapcell=new OLAPcell();
-				Map label=new TreeMap();
-				for(int i=1;i<=columnsize;i++){
-					String entryname=rsMD.getColumnName(i);
+					//OLAPcell olapcell=new OLAPcell();
+					Map label=new TreeMap();
+					for(int i=1;i<=columnsize;i++){
+						String entryname=rsMD.getColumnName(i);
 					
-					String entryclass=rsMD.getColumnClassName(i);
-					Object value=rs.getObject(entryname);
-					label.put(rsMD.getColumnName(i), value);
-//					System.out.println(rsMD.getColumnName(i)+" "+value);
-//					System.out.println(rs.getObject(entryname));
+						String entryclass=rsMD.getColumnClassName(i);
+						Object value=rs.getObject(entryname);
+						if(entryname.equals("age")){
+							value=String.valueOf(value);
+							value=compressDataset.compressAgeIntoAgeRange((String)value);
+						}
+						if(entryname.equals("time")){
+							DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+							String time=df.format(value);
+							value=compressDataset.compressDateIntoQuarter(time);
+						}
+						label.put(rsMD.getColumnName(i), value);
+						//System.out.println(rsMD.getColumnName(i)+" "+value);
+						//System.out.println(rs.getObject(entryname));
 
+					}
+				
+					//if this label is a new label, put label into cellset and initialize the count=1
+					//else count++ for the exiting label
+					if(OLAPcube.addLabel(label,labelList,labelMap,"a")){
+						//System.out.println(label);
+						
+						cellset.put(labelcount-1, 1);
+					}else{
+						//System.out.println(label);
+						int labelindex=labelList.indexOf(label);
+						int oldcount=cellset.get(labelindex);
+						int newcount=oldcount+1;
+						cellset.put(labelindex, newcount);
+					}
+					
+					count++;
+					if((count/rssize)-ratio>=0.002){
+						ratio=count/rssize;
+						System.out.println("progess:"+ratio+"%");
+					}
+					
+					
+					
 				}
 				
-				//if this label is a new label, put label into cellset and initialize the count=1
-				//else count++ for the exiting label
-				if(OLAPcube.addLabel(label,labelList,labelMap,"a")){
-					//System.out.println(label);
-					cellset.put(labelcount-1, 1);
-				}else{
-					//System.out.println(label);
-					int labelindex=labelList.indexOf(label);
-					int oldcount=cellset.get(labelindex);
-					int newcount=oldcount+1;
-					cellset.put(labelindex, newcount);
-				}
-				
-				
+				//System.out.println("Complete generate cellset");
 			}
-			}
+			//System.out.println("Complete generate cellset");
 
 
-				
-			
+						
 
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
@@ -230,6 +274,7 @@ public class OLAPcube {
 	
 	//generate sublabelList of b,c,d
 	public static void generateSublabelList(){
+		
 		for(int i=0;i<labelList.size();i++){
 			
 			
@@ -267,6 +312,8 @@ public class OLAPcube {
 			
 		
 		}
+//		printTool.printList(labelList);
+//		System.out.println("========");
 //		printTool.printList(labelList_b);
 //		System.out.println("========");
 //		printTool.printList(labelList_c);
@@ -278,7 +325,7 @@ public class OLAPcube {
 //		printTool.printMap(labelMap_c);
 //		System.out.println("========");
 //		printTool.printMap(labelMap_d);
-		
+//		System.out.println("========");
 		
 		
 	}
@@ -333,6 +380,7 @@ public class OLAPcube {
 		}
 		//print abcd count for each cell;
 		//printTool.printMap(abcdMap);
+		//printTool.printMap(labelMap);
 		
 	}
 	
@@ -351,7 +399,7 @@ public class OLAPcube {
 				if(label_a.entrySet().containsAll(sublabel.entrySet())){
 					sumcount=sumcount+cellset.get(labelindex_a);
 				}
-			}
+			}	
 			if(type.equals("b")){
 				cellset_b.put(i, sumcount);
 			}else if(type.equals("c")){

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import javassist.bytecode.Descriptor.Iterator;
 
@@ -80,17 +81,8 @@ public class getAdvancedForm extends HttpServlet {
 		String numk=request.getParameter("K");
 		String[] ages=request.getParameterValues("age");
 		
-//		System.out.println(drug+" "+symtom);
-//		
-
-//		System.out.println(measure);
-//		System.out.println("numofcount"+numofcount);
-	
 		
-//		
 		queryvar.setAge(ages);
-		
-
 		queryvar.setAd_timeperiod(quarters, year);
 		queryvar.setDrug(drug);
 		queryvar.setSymtom(symtom);
@@ -101,23 +93,18 @@ public class getAdvancedForm extends HttpServlet {
 			queryvar.setNumOutput(numofcount+"_"+numk);
 		}
 
-		queryvar.setType("advanced");
-		QueryFromMysql.query(queryvar);
 		
-//		System.out.println("year="+queryvar.getAd_timeperiod().get("Year"));
-//		System.out.println("quarters="+queryvar.getAd_timeperiod().get("Quarters"));
-//		System.out.println("ages="+queryvar.getAge());
-//		System.out.println("drug="+queryvar.getDrug());
-//		System.out.println("symtom="+queryvar.getSymtom());
-//		System.out.println("measure="+queryvar.getMeasure());
-//		System.out.println("numouput="+queryvar.getNumOutput());
-//		System.out.println("type="+queryvar.getType());
-//		System.out.println("====================");
-		
+		queryvar.setType("advanced");		
+
 		List outputList;
 		outputList=QueryFromMysql.query(queryvar);
+		if(outputList.size()>1){
+			printTool.printResultsToHTML(out,queryvar,outputList);
+		}else if(outputList.size()==1){
+			Map resultMap=(Map) outputList.get(0);
+			printTool.printHTMLDS(resultMap, queryvar, out);
+		}
 		
-		printTool.printResultsToHTML(out,queryvar,outputList);
 		
 	}
 

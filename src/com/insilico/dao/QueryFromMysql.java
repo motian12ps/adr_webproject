@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.insilico.datastructure.OLAPcube;
+import com.insilico.parameter.parameter;
 import com.insilico.util.printTool;
 
 
@@ -21,13 +22,26 @@ public class QueryFromMysql {
 	public static List query(QueryVariables queryvar){
 		
 		Connection conn=QueryFromMysql.getConnection();
-		QueryFromMysql.generateOLAPCube(conn, queryvar);
-		OLAPcube.computeABCD();
-		OLAPcube.setMeasurevalue(queryvar);
-		List outputList;
-		outputList=OLAPcube.outputK(queryvar);
-		//printTool.printResults(outputList);
-		return outputList;
+		String drugname=queryvar.getDrug();
+		String symtom=queryvar.getSymtom();
+		String type=queryvar.getType();
+
+		//There exists two mode, the first mode is we have known the specific drug and specific symptom
+		if((drugname!=null&&(!drugname.equals("")))&&(symtom!=null&&(!symtom.equals("")))&&type.equals("advanced")){
+			Map resultMap=QueryFromMysql.queryUnderDS(queryvar,conn);
+			List list=new ArrayList();
+			list.add(resultMap);
+			return list;
+		}else{
+			QueryFromMysql.generateOLAPCube(conn, queryvar);
+			OLAPcube.computeABCD();
+			OLAPcube.setMeasurevalue(queryvar);
+			List outputList;
+			outputList=OLAPcube.outputK(queryvar);
+			//printTool.printResults(outputList);
+			return outputList;
+		}
+
 
 		
 	}
@@ -65,11 +79,8 @@ public class QueryFromMysql {
 			String sql=QueryFromMysql.generateSQL(queryvar);
 			ResultSet rs=stmt.executeQuery(sql);
 			ResultSetMetaData rsMD=rs.getMetaData();	
-//			int count=0;
-//			while(rs.next()){
-//				//System.out.println(rs.getDate("time"));
-//				count++;
-//			}
+			System.out.println("complete sql");
+
 			OLAPcube olcube=new OLAPcube(rs,rsMD);
 			return olcube;
 			//System.out.println(count);
@@ -179,40 +190,61 @@ public class QueryFromMysql {
 			}
 			ageconstraint=" ("+ageconstraint.substring(0, ageconstraint.length()-2)+") ";
 			part.add(ageconstraint);
+			
+			
 			//System.out.println(ageconstraint);
 			
 			String drugconstraint=" ";
 			String drugname=queryvar.getDrug();
-			if(drugname.length()!=0){
-				selectpart=selectpart+" drug_name,";
-				drugconstraint="(drug_name='"+drugname+"')";
-				part.add(drugconstraint);
-			}
 
-			
-			//System.out.println(drugconstraint);
 			
 			String symtomconstraint=" ";
 			String symtomname=queryvar.getSymtom();
-			if(symtomname.length()!=0){
-				selectpart=selectpart+" pt,";
-				symtomconstraint="(pt='"+symtomname+"')";
-				part.add(symtomconstraint);
+			
+			if(drugname.equals("")&&symtomname.equals("")){
+				String whereconstraint=" where ";
+				for(int i=0;i<part.size();i++){
+					whereconstraint=whereconstraint+part.get(i)+" and ";
+				}
+				whereconstraint=whereconstraint.substring(0, whereconstraint.length()-4);
+				//System.out.println(whereconstraint);
+				
+				selectpart=selectpart.substring(0, selectpart.length()-1);
+				//System.out.println(selectpart);
+				
+				sql=selectpart+tablepart+whereconstraint+";";
 			}
+			
+			
+//			if(drugname.length()!=0){
+//				selectpart=selectpart+" drug_name,";
+//				drugconstraint="(drug_name='"+drugname+"')";
+//				part.add(drugconstraint);
+//			}
+//
+//			
+//			//System.out.println(drugconstraint);
+//			
+
+//			if(symtomname.length()!=0){
+//				selectpart=selectpart+" pt,";
+//				symtomconstraint="(pt='"+symtomname+"')";
+//				part.add(symtomconstraint);
+//			}
 			
 			
 			//System.out.println(symtomconstraint);
-			String whereconstraint=" where ";
-			for(int i=0;i<part.size();i++){
-				whereconstraint=whereconstraint+part.get(i)+" and ";
-			}
-			whereconstraint=whereconstraint.substring(0, whereconstraint.length()-4);
-			//System.out.println(whereconstraint);
-			
-			selectpart=selectpart.substring(0, selectpart.length()-1);
-			//System.out.println(selectpart);
-			
-			sql=selectpart+tablepart+whereconstraint+";";
+//			String whereconstraint=" where ";
+//			for(int i=0;i<part.size();i++){
+//				whereconstraint=whereconstraint+part.get(i)+" and ";
+//			}
+//			whereconstraint=whereconstraint.substring(0, whereconstraint.length()-4);
+//			//System.out.println(whereconstraint);
+//			
+//			selectpart=selectpart.substring(0, selectpart.length()-1);
+//			//System.out.println(selectpart);
+//			
+//			sql=selectpart+tablepart+whereconstraint+";";
 			System.out.println(sql);
 			
 		
@@ -247,7 +279,204 @@ public class QueryFromMysql {
 		return date;
 	}
 	
-	public static void computeABCD(OLAPcube olapbuc){
+	//query under when we have the specific drug and symptom
+	public static Map queryUnderDS(QueryVariables queryvar,Connection conn){
 		
+
+		String sql_a;
+		String sql_b;
+		String sql_c;
+		String sql_d;
+		
+		String selectpart="select count(*) ";
+		String tablepart="from Denormalized_ADR ";
+		String whereconstraint_a="where ";
+		String whereconstraint_b="where ";
+		String whereconstraint_c="where ";
+		String whereconstraint_d="where ";
+		
+			
+		List<String> part_a=new ArrayList<String>();
+		List<String> part_b=new ArrayList<String>();
+		List<String> part_c=new ArrayList<String>();
+		List<String> part_d=new ArrayList<String>();
+		
+		//set the time constraint
+		String timeconstraint=null;
+		
+		String year=(String) queryvar.getAd_timeperiod().get("Year");
+		List quarterList=(List) queryvar.getAd_timeperiod().get("Quarters");
+		
+		
+		for(int i=0;i<quarterList.size();i++){
+			
+			String starttime=QueryFromMysql.setDatetype(year+"_"+quarterList.get(i),"start");
+			String endtime=QueryFromMysql.setDatetype(year+"_"+quarterList.get(i), "end");
+			
+			timeconstraint=timeconstraint+" time between '"+starttime+"' and '"+endtime+"' or";
+		}
+		timeconstraint=timeconstraint.substring(5, timeconstraint.length()-2);
+		timeconstraint=" ("+timeconstraint+") ";
+		part_a.add(timeconstraint);
+		part_b.add(timeconstraint);
+		part_c.add(timeconstraint);
+		part_d.add(timeconstraint);
+		
+		//System.out.println(timeconstraint);
+		
+		//set the age constraint
+		String ageconstraint=" ";
+		
+		List ageList=(List) queryvar.getAge();
+
+		for(int i=0;i<ageList.size();i++){
+			
+			String[] ageline=((String) ageList.get(i)).split("_");
+				
+			String startage=ageline[0];
+			String endage=ageline[1];
+			
+			ageconstraint=ageconstraint+" age between "+startage+" and "+endage+" or";
+		}
+		ageconstraint=" ("+ageconstraint.substring(0, ageconstraint.length()-2)+") ";
+		part_a.add(ageconstraint);
+		part_b.add(ageconstraint);
+		part_c.add(ageconstraint);
+		part_d.add(ageconstraint);
+		//System.out.println(ageconstraint);
+		
+		String drugname=queryvar.getDrug();
+		String symptom=queryvar.getSymtom();
+		String lastconstraint_a="( drug_name='"+drugname+"' and pt='"+symptom+"')";
+		String lastconstraint_b="( drug_name='"+drugname+"')";
+		String lastconstraint_c="( pt='"+symptom+"')";
+		part_a.add(lastconstraint_a);
+		part_b.add(lastconstraint_b);
+		part_c.add(lastconstraint_c);
+		
+
+		for(int i=0;i<part_a.size();i++){
+			whereconstraint_a=whereconstraint_a+part_a.get(i)+" and ";
+		}
+		whereconstraint_a=whereconstraint_a.substring(0, whereconstraint_a.length()-4);
+		//System.out.println(whereconstraint_a);
+
+		for(int i=0;i<part_b.size();i++){
+			whereconstraint_b=whereconstraint_b+part_b.get(i)+" and ";
+		}
+		whereconstraint_b=whereconstraint_b.substring(0, whereconstraint_b.length()-4);
+		//System.out.println(whereconstraint_b);
+		
+		for(int i=0;i<part_c.size();i++){
+			whereconstraint_c=whereconstraint_c+part_c.get(i)+" and ";
+		}
+		whereconstraint_c=whereconstraint_c.substring(0, whereconstraint_c.length()-4);
+		//System.out.println(whereconstraint_c);
+		
+		for(int i=0;i<part_d.size();i++){
+			whereconstraint_d=whereconstraint_d+part_d.get(i)+" and ";
+		}
+		whereconstraint_d=whereconstraint_d.substring(0, whereconstraint_d.length()-4);
+		//System.out.println(whereconstraint_d);
+
+		//selectpart=selectpart.substring(0, selectpart.length()-1);
+		//System.out.println(selectpart);
+		sql_a=selectpart+tablepart+whereconstraint_a+";";
+		sql_b=selectpart+tablepart+whereconstraint_b+";";
+		sql_c=selectpart+tablepart+whereconstraint_c+";";
+		sql_d=selectpart+tablepart+whereconstraint_d+";";
+		System.out.println(sql_a);
+		System.out.println(sql_b);
+		System.out.println(sql_c);
+		System.out.println(sql_d);
+
+		Statement stmt1=null;
+		Statement stmt2=null;
+		Statement stmt3=null;
+		Statement stmt4=null;
+		
+		Map resultMap=new HashMap();
+
+		try {
+			stmt1=conn.createStatement(ResultSet.TYPE_SCROLL_SENSITIVE,ResultSet.CONCUR_UPDATABLE);
+			stmt2=conn.createStatement(ResultSet.TYPE_SCROLL_SENSITIVE,ResultSet.CONCUR_UPDATABLE);
+			stmt3=conn.createStatement(ResultSet.TYPE_SCROLL_SENSITIVE,ResultSet.CONCUR_UPDATABLE);
+			stmt4=conn.createStatement(ResultSet.TYPE_SCROLL_SENSITIVE,ResultSet.CONCUR_UPDATABLE);
+			ResultSet rs_a=stmt1.executeQuery(sql_a);
+			ResultSet rs_b=stmt2.executeQuery(sql_b);
+			ResultSet rs_c=stmt3.executeQuery(sql_c);
+			ResultSet rs_d=stmt4.executeQuery(sql_d);
+
+			double a=0;
+			double b=0;
+			double c=0;
+			double d=0;
+			while(rs_a.next()){
+				a=rs_a.getInt(1);
+				//System.out.println("a="+a);
+				resultMap.put("a", a);
+			}
+			while(rs_b.next()){
+				b=rs_b.getInt(1)-a;
+				//System.out.println("b="+b);
+				resultMap.put("b", b);
+			}
+			while(rs_c.next()){
+				c=rs_c.getInt(1)-a;
+				//System.out.println("c="+c);
+				resultMap.put("c", c);
+			}
+			while(rs_d.next()){
+				d=rs_d.getInt(1)-a-b-c;
+				//System.out.println("d="+d);
+				resultMap.put("d", d);
+			}
+			
+			String measure=queryvar.getMeasure();
+			if(measure.equals("ROR")){
+				double ROR=0;
+				if(b==0||c==0){
+					ROR=parameter.INFINITY;
+				}else{
+					ROR=a*d/(c*b);
+				}
+				resultMap.put("ROR", ROR);
+
+			}
+			
+			double PRR=0;
+			if(measure.equals("PRR")){
+				if((a+b)==0||c==0){
+					PRR=parameter.INFINITY;
+				}else{
+					PRR=a*(c+b)/(a+b)/c;
+				}
+
+				resultMap.put("PRR", PRR);
+				
+			}
+			
+			double IC=0;
+			
+			if(measure.equals("IC")){
+				if((a+b)==0||(a+c)==0){
+					IC=parameter.INFINITY;
+				}else if((a*(a+b+c+d)/(a+b)/(a+c))==0){
+					IC=parameter.MINUSINFINITY;
+				}else{
+					double express=a*(a+b+c+d)/(a+b)/(a+c);
+					IC=Math.log(express)/Math.log(2);
+				}
+				resultMap.put("IC", IC);
+			}
+			System.out.println(resultMap);
+			return resultMap;
+			
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		return null;
 	}
 }

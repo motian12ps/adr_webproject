@@ -31,4 +31,8 @@
     <servlet-name>getAdvancedForm</servlet-name>
     <url-pattern>/servlet/getAdvancedForm</url-pattern>
   </servlet-mapping>
+  
+  <welcome-file-list> 
+  		<welcome-file>frontend.html</welcome-file> 
+  </welcome-file-list> 
 </web-app>
